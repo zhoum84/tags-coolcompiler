@@ -330,7 +330,6 @@ def cgen(exp, st):
         asm += movq(f'0({fp})', tmp_reg)
 
         # retrieve first operand from stack
-        # asm += (f"\t\tpop {tmp_reg}\n")
         # add values together
         if isinstance(exp, AAST.Plus):
             asm += addq(tmp_reg, acc_reg)
