@@ -2,7 +2,7 @@ import aast as AAST
 
 # Given contents of a .cl-type file, initialize data structures
 # required to hold all necessary information
-  
+# Works for both cool assembly and x86
 type_lines = []
 class_map = {}
 implementation_map = {}
@@ -260,7 +260,7 @@ def temps(e):
         t = []
         for c in e.caselist:
             t.append(temps(c))
-        return max(t) + temps(e.exp)
+        return max(t)
     elif isinstance(e, AAST.Assign):
         return temps(e.exp)
     elif isinstance(e, AAST.LetInit):

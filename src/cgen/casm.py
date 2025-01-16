@@ -1,73 +1,11 @@
-import sys
-import init as INIT
 import aast as AAST
-import utils as UT
 import registers as REG
 import copy
-# Global Variables
-# Data structures that store all information required
-
-# Class --> Attributes
-class_map = {}
-
-# Class --> Methods
-implementation_map = {}
-
-# static strings --> string labels
-constant_labels={}
-
-# Child --> Parent map
-parent_map = {}
-
-# Parent --> Child map
-child_map = {}
-
-# Annotated Abstract Syntax Tree
-ast = []
-
-# Class Name --> Class Tag
-class_tags = {}
-
-# Current class that is compiling 
-current_class = ""
-
-self_reg = REG.R(0)
-acc_reg = REG.R(1)
-tmp_reg = REG.R(2)
-reg_three = REG.R(3)
-
-# offset constants for object layout
-classtag_offset = 0
-size_offset = 1
-vtable_offset = 2
-metadata_size = 3
-e1_contents_offset = 4
-e2_contents_offset = 5 
-
-# primitive offsets
-int_contents_offset = 3
-bool_contents_offset = int_contents_offset
-string_contents_offset = int_contents_offset
-
-branch_count = 0
+import utils as UT
+from constants import * 
 
 asm = ""
 
-def assign_tags(classes):
-    tags = {}
-    cpy = []
-    
-    for cls in (classes):
-        if cls not in ["Int", "Bool", "String", "Object"]:
-            cpy.append(cls)
-    for i, cls in enumerate(cpy):
-        tags[cls] = i + 10
-    tags["Int"] = 1
-    tags["Bool"] = 0
-    tags["String"] = 3
-    tags["Object"] = 9
-    print(tags)
-    return tags
 
 def cgen(exp, st):
     global asm
@@ -577,48 +515,18 @@ def cgen(exp, st):
     else:
         print(type(exp))
 
-def format_constants(class_names, constants):
+
+def format_constants_casm(class_names, constants):
     builtin =["abort", "ERROR: 0: Exception:"]
-    string_count = len(class_names) + len(builtin)
     constants_str = ""
     constants_str += 'the.empty.string:\t\tconstant ""\n'
-    for i, cls in enumerate(class_names):
+    for i, cls in enumerate(class_names + builtin + constants):
         constants_str += f'string{i}:\t\tconstant "{cls}"\n'
         constant_labels[cls] = f'string{i}'
-    for i, c in enumerate(builtin):
-        constants_str += f'string{i + len(class_names)}:\t\tconstant "{c}"\n'
-        constant_labels[c] = f'string{i + len(class_names)}'
-
-    for const in constants:
-        if type(const) is str:
-            constant_labels[const]= f'string{string_count}'
-            constants_str += f'string{string_count}:\t\tconstant "{const}"\n'
-            string_count += 1
 
     return constants_str
 
-def __main__():
-
-    if len(sys.argv) < 2: 
-        print("Specify .cl-type input file.\n")
-        exit()
-    with open(sys.argv[1]) as f:
-        lines = [l[:-1] for l in f.readlines()] # strip \n
-    global class_map
-    global implementation_map
-    global ast
-    global class_tags
-    global current_class
-    global parent_map
-    global child_map
-    (class_map, class_names) = INIT.load_class_map(lines)
-    (implementation_map, ast, constants) = INIT.load_implementation_map_and_ast(lines)
-    (parent_map, child_map) = INIT.load_parent_map(lines)
-    
-    class_tags = assign_tags(class_names)
-
-    constant_block = format_constants(class_names, constants)
-    
+def create_vtables(class_names):
     global asm
     for cls in class_names:
         # create label for vtable
@@ -630,8 +538,12 @@ def __main__():
         if cls in implementation_map:
             for method in implementation_map[cls]:
                 asm += (f"\t\tconstant {method.method_label}") + "\n"
-        
-    # asm +=  constructors
+
+def create_constructors(class_names):
+    global asm
+    global current_class
+    global class_map
+
     for cls in class_names:
         current_class = cls
         asm += (f"{cls}..new:") + "\n"
@@ -735,8 +647,9 @@ def __main__():
         asm += (f"\t\tadd sp <- sp {tmp_reg}\n")
         asm += ("\t\treturn") + "\n"
 
-
-    #methods
+def create_methods():
+    global asm
+    global current_class
     method: AAST.MethodImplementation
     for method in ast:
         # make label
@@ -754,7 +667,6 @@ def __main__():
         # determien which class the method belongs to
         # lookup the attributes in that class
         for i, attribute in enumerate(from_class):
-            
             st[attribute.id] = self_reg.off(i + metadata_size)
         
         for i, formal in enumerate(method.formals):
@@ -769,10 +681,9 @@ def __main__():
             asm += f"\t\tadd sp <- sp {tmp_reg}\n"
 
         asm += ("\t\treturn") + '\n'
-    asm += constant_block   
 
-    asm += UT.create_cmp(class_tags)
-    #start label
+def create_start_label():
+    global asm
     asm += ("start:") + '\n'
     asm += ("\t\tla r2 <- Main..new") + '\n'
     asm += "\t\tpush fp\n"
@@ -784,9 +695,29 @@ def __main__():
     asm += (f"\t\tcall {tmp_reg}") + '\n'
     asm += ("\t\tsyscall exit") + '\n'
 
-    asm_filename = (sys.argv[1])[:-4] + "asm"
-    fout = open(asm_filename, 'w')
-    fout.write(asm)
+def casm(class_names,constants, _class_map, _implementation_map, _ast,_parent_map, _child_map, _class_tags):
+    global class_map
+    global implementation_map
+    global ast
+    global class_tags
+    global current_class
+    global parent_map
+    global child_map
+    global asm
 
-if __name__ == '__main__':
-    __main__()
+    class_map = _class_map
+    implementation_map = _implementation_map
+    ast = _ast
+    parent_map = _parent_map
+    child_map = _child_map
+    class_tags = _class_tags
+    constant_block = format_constants_casm(class_names, constants)
+    create_vtables(class_names)
+    create_constructors(class_names)
+    create_methods()
+    asm += constant_block   
+
+    asm += UT.create_cmp(class_tags)
+    create_start_label()
+    return asm
+

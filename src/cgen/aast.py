@@ -1,7 +1,3 @@
-import main as M
-
-asm = ""
-
 class Node(object):
     def __init__(self, lineno, anno_type):
         self.lineno = lineno
@@ -11,8 +7,6 @@ class Node(object):
         return ""
     # def __str__(self):
     #     return self.s()
-    def cgen(self):
-        pass
 
 class Attribute(Node):
     def __init__(self, _id, _type, _init = None, num_temps=0):
@@ -59,15 +53,6 @@ class Assign(Node):
         self.ident = _ident
         self.exp = _exp
         #self.exp_type = self.exp.exp_type
-    
-    def cgen(self, st):
-        global asm
-        loc = self.exp.exp.cgen(st)
-        asm += f'\t\tmov {M.reg_three} <- {loc}\n'
-        asm += f'\t\tst {st[self.exp.ident.name]} <- {M.reg_three};;assign\n'
-        return loc
-
-
     
 class Variable(Node):
     def __init__(self, lineno, anno_type, name):
